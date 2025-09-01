@@ -2,4 +2,4 @@ name: DrcomoMotionCast
 version: '${project.version}'
 main: cn.drcomo.drcomomotioncast.DrcomoMotionCast
 api-version: '1.20'
-depend: [ModelEngine, MythicMobs]
+depend: [DrcomoCoreLib, MythicMobs, ModelEngine]

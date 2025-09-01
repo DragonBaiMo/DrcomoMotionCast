@@ -58,6 +58,11 @@
           <id>sonatype</id>
           <url>https://oss.sonatype.org/content/groups/public/</url>
       </repository>
+      <repository>
+          <id>lumine-public</id>
+          <name>Lumine Public</name>
+          <url>https://mvn.lumine.io/repository/maven-public/</url>
+      </repository>
   </repositories>
 
   <dependencies>
@@ -77,6 +82,17 @@
           <groupId>org.jetbrains</groupId>
           <artifactId>annotations</artifactId>
           <version>24.1.0</version>
+          <scope>provided</scope>
+      </dependency>
+      <dependency>
+          <groupId>io.lumine</groupId>
+          <artifactId>Mythic-Dist</artifactId>
+          <version>5.7.1</version>
+      </dependency>
+      <dependency>
+          <groupId>com.ticxo.modelengine</groupId>
+          <artifactId>ModelEngine</artifactId>
+          <version>R4.0.9</version>
           <scope>provided</scope>
       </dependency>
   </dependencies>
