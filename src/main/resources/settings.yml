@@ -1,0 +1,34 @@
+# DrcomoMotionCast 全局设置文件
+
+# 调试级别: DEBUG|INFO|NONE，可在运行时切换
+debug: INFO
+
+# 悬停检测配置
+hover:
+  min_ticks: 8               # 连续满足阈值的最小tick
+  v_abs_y: 0.03              # 垂直速度阈值 |vy|
+  h_speed: 0.06              # 水平速度阈值 sqrt(vx^2+vz^2)
+
+# Tick调度器配置
+tick:
+  max_players_per_tick: 200  # 每帧处理玩家上限，超额分帧
+
+# 冷却系统配置
+cooldown:
+  default: 0                 # 默认冷却时间(tick)
+
+# 性能监控
+performance:
+  enable_statistics: true    # 启用统计信息收集
+  cleanup_interval: 300      # 清理间隔(秒)
+  
+# 集成设置
+integration:
+  mythicmobs:
+    enabled: true            # 启用MythicMobs集成
+    check_skill_exists: false # 检查技能是否存在（可能影响性能）
+  
+  modelengine:
+    enabled: true            # 启用ModelEngine集成
+    cache_model_ids: true    # 缓存玩家模型ID
+    cache_refresh_interval: 60 # 缓存刷新间隔(秒)

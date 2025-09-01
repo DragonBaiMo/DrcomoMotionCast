@@ -1,0 +1,27 @@
+# DrcomoMotionCast 语言文件
+
+# 插件前缀
+prefix: "&f[&bDrcomoMotionCast&r]&f "
+
+# 系统消息
+messages:
+  reloaded: "&a配置已重载，共 &e%files%&a 个模型文件"
+  rule_fired: "&7规则 &e%rule% &7→ 技能 &b%skill%"
+  rule_blocked_cooldown: "&7规则 &e%rule% &7冷却中，还需 &c%remain%t"
+  no_permission: "&c你没有权限执行此命令"
+  unknown_command: "&c未知的子命令: %command%"
+  config_load_failed: "&c配置文件加载失败: %error%"
+  mythicmobs_not_found: "&c未检测到 MythicMobs 插件"
+  modelengine_not_found: "&7未检测到 ModelEngine 插件，将跳过模型检测功能"
+
+# 命令帮助
+commands:
+  help_header: "&6=== DrcomoMotionCast 命令帮助 ==="
+  reload: "&e/dmc reload &7- 重载插件配置"
+  
+# 错误消息
+errors:
+  rule_invalid: "&c规则 %rule% 配置无效: %reason%"
+  target_resolution_failed: "&c目标解析失败: %target%"
+  skill_execution_failed: "&c技能执行失败: %skill%"
+  mythicmobs_integration_error: "&c MythicMobs 集成错误: %error%"

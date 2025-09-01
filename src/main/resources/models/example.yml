@@ -1,0 +1,85 @@
+# DrcomoMotionCast 示例模型配置
+# 这是一个示例配置文件，展示了如何配置动作到技能的映射规则
+
+model: example_model
+
+rules:
+  # 攻击规则 - 攻击时立即触发
+  - id: attack_basic
+    action: attack
+    when: instant
+    skill: ExampleAttack
+    target: @victim
+    cd: 20
+    
+  # 飞行规则组
+  - id: fly_start
+    action: fly
+    when: start
+    skill: ExampleFlyStart
+    
+  - id: fly_charge
+    action: fly
+    when: duration
+    after: 40
+    skill: ExampleFlyCharge
+    
+  - id: fly_aura
+    action: fly
+    when: tick
+    every: 10
+    skill: ExampleFlyAura
+    
+  - id: fly_end
+    action: fly
+    when: end
+    skill: ExampleFlyEnd
+    
+  # 滑翔规则
+  - id: glide_start
+    action: glide
+    when: start
+    skill: ExampleGlideStart
+    
+  # 游泳规则
+  - id: swim_boost
+    action: swim
+    when: tick
+    every: 20
+    skill: ExampleSwimBoost
+    target: @self
+    
+  # 骑乘规则 - 仅限马匹
+  - id: ride_horse
+    action: ride
+    when: start
+    skill: ExampleMountHorse
+    meta:
+      mount: HORSE
+      
+  # 乘船规则
+  - id: boat_sail
+    action: inboat
+    when: start
+    skill: ExampleBoatSail
+    meta:
+      boat: true
+      
+  # 悬停规则组
+  - id: hover_enter
+    action: hover
+    when: start
+    skill: ExampleHoverStart
+    
+  - id: hover_maintain
+    action: hover
+    when: tick
+    every: 30
+    skill: ExampleHoverMaintain
+    target: @self
+    cd: 5
+    
+  - id: hover_exit
+    action: hover
+    when: end
+    skill: ExampleHoverEnd
