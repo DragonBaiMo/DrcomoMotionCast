@@ -26,6 +26,10 @@ public class PlayerStateManager implements Listener {
     // 存储所有玩家的状态会话
     private final Map<UUID, PlayerStateSession> sessions = new ConcurrentHashMap<>();
     
+    // 活跃会话集合与快照（避免每Tick全量筛选与分配）
+    private final Set<PlayerStateSession> activeSessions = ConcurrentHashMap.newKeySet();
+    private volatile List<PlayerStateSession> activeSnapshot = Collections.emptyList();
+    
     // 定时清理任务
     private final ScheduledExecutorService cleanupExecutor;
     private final long contextMaxAge;
@@ -49,6 +53,32 @@ public class PlayerStateManager implements Listener {
         });
         
         startCleanupTask();
+    }
+
+    /**
+     * 重建活跃会话快照
+     * 说明：仅在活跃集合发生变更时调用，降低每Tick分配与遍历成本
+     */
+    private void rebuildActiveSnapshot() {
+        // 使用新的 ArrayList 作为不可变快照引用，避免迭代期间结构化修改带来的并发问题
+        this.activeSnapshot = new ArrayList<>(activeSessions);
+    }
+
+    /**
+     * 根据会话当前是否存在任一激活状态，更新活跃集合与快照
+     */
+    public void updateActiveStatus(PlayerStateSession session) {
+        if (session == null) return;
+        boolean hasActive = session.hasActiveState();
+        boolean changed;
+        if (hasActive) {
+            changed = activeSessions.add(session);
+        } else {
+            changed = activeSessions.remove(session);
+        }
+        if (changed) {
+            rebuildActiveSnapshot();
+        }
     }
     
     /**
@@ -105,6 +135,10 @@ public class PlayerStateManager implements Listener {
         PlayerStateSession session = sessions.remove(playerUUID);
         if (session != null) {
             logger.debug("移除玩家 " + playerUUID + " 的状态会话");
+            // 同步移除活跃集合并重建快照
+            if (activeSessions.remove(session)) {
+                rebuildActiveSnapshot();
+            }
         }
         return session;
     }
@@ -120,9 +154,15 @@ public class PlayerStateManager implements Listener {
      * 获取所有有激活状态的玩家会话
      */
     public List<PlayerStateSession> getActiveStateSessions() {
-        return sessions.values().stream()
-                .filter(PlayerStateSession::hasActiveState)
-                .collect(Collectors.toList());
+        // 兼容旧接口：从快照复制，避免每次筛选
+        return new ArrayList<>(activeSnapshot);
+    }
+
+    /**
+     * 获取活跃会话快照（零拷贝引用，勿在外部修改）
+     */
+    public List<PlayerStateSession> getActiveSessionSnapshot() {
+        return activeSnapshot;
     }
     
     /**
@@ -143,20 +183,15 @@ public class PlayerStateManager implements Listener {
      * 获取有激活状态的玩家数量
      */
     public int getActiveStateCount() {
-        return (int) sessions.values().stream()
-                .filter(PlayerStateSession::hasActiveState)
-                .count();
+        return activeSessions.size();
     }
     
     /**
      * 增加所有激活状态的tick计数
      */
     public void incrementAllActiveTicks() {
-        for (PlayerStateSession session : sessions.values()) {
-            if (session.hasActiveState()) {
-                session.incrementTicks();
-            }
-        }
+        // 时间基准已修正为基于“起始时间+当前时间”的差值，本方法不再在 TickScheduler 中使用
+        // 保留空实现以兼容潜在的外部调用场景
     }
     
     /**
@@ -197,9 +232,8 @@ public class PlayerStateManager implements Listener {
 
             if (toRemove != null && !toRemove.isEmpty()) {
                 for (UUID uuid : toRemove) {
-                    if (sessions.remove(uuid) != null) {
-                        totalSessionsCleaned++;
-                    }
+                    PlayerStateSession removed = removeSession(uuid);
+                    if (removed != null) totalSessionsCleaned++;
                 }
                 logger.debug("清理了 " + toRemove.size() + " 个过期且离线的会话");
             }
@@ -225,6 +259,9 @@ public class PlayerStateManager implements Listener {
     public void clearAllSessions() {
         int count = sessions.size();
         sessions.clear();
+        // 清空活跃集合与快照
+        activeSessions.clear();
+        rebuildActiveSnapshot();
         if (count > 0) {
             logger.info("已清空所有 " + count + " 个玩家状态会话");
         }
@@ -238,6 +275,7 @@ public class PlayerStateManager implements Listener {
         if (session != null) {
             session.reset();
             logger.debug("重置玩家 " + playerUUID + " 的所有状态");
+            updateActiveStatus(session);
         }
     }
     
@@ -290,6 +328,7 @@ public class PlayerStateManager implements Listener {
             // 清理状态但不立即删除会话，让清理任务处理
             session.reset();
             logger.debug("玩家 " + player.getName() + " 离开，重置状态会话");
+            updateActiveStatus(session);
         }
     }
     

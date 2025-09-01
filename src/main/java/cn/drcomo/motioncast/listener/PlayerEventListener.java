@@ -88,6 +88,9 @@ public class PlayerEventListener implements Listener {
         } else {
             actionEngine.fireRules(player, ActionType.FLY, TriggerWhen.END);
         }
+
+        // 同步更新活跃会话集合
+        stateManager.updateActiveStatus(session);
     }
     
     /**
@@ -108,6 +111,9 @@ public class PlayerEventListener implements Listener {
         } else {
             actionEngine.fireRules(player, ActionType.GLIDE, TriggerWhen.END);
         }
+
+        // 同步更新活跃会话集合
+        stateManager.updateActiveStatus(session);
     }
     
     /**
@@ -128,6 +134,9 @@ public class PlayerEventListener implements Listener {
         } else {
             actionEngine.fireRules(player, ActionType.SWIM, TriggerWhen.END);
         }
+
+        // 同步更新活跃会话集合
+        stateManager.updateActiveStatus(session);
     }
     
     /**
@@ -150,6 +159,9 @@ public class PlayerEventListener implements Listener {
             session.setCurrentMount(event.getVehicle());
             actionEngine.fireRules(player, ActionType.RIDE, TriggerWhen.START);
         }
+
+        // 同步更新活跃会话集合
+        stateManager.updateActiveStatus(session);
     }
     
     /**
@@ -176,6 +188,9 @@ public class PlayerEventListener implements Listener {
                 actionEngine.fireRules(player, ActionType.RIDE, TriggerWhen.END);
             }
         }
+
+        // 同步更新活跃会话集合
+        stateManager.updateActiveStatus(session);
     }
     
     /**
@@ -183,7 +198,11 @@ public class PlayerEventListener implements Listener {
      */
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onPlayerMove(PlayerMoveEvent event) {
-        // 悬停检测由TickScheduler处理，这里只更新速度
+        // 悬停检测由 TickScheduler 统一处理，这里仅在位置发生变化时才更新速度，减少高频事件的无效写入
+        // 说明：1.20+ 提供 hasChangedPosition，可避免视角变化等无关事件导致的冗余处理
+        if (!event.hasChangedPosition()) {
+            return;
+        }
         Player player = event.getPlayer();
         PlayerStateSession session = stateManager.getSession(player);
         

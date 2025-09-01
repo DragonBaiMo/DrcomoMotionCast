@@ -184,13 +184,16 @@ public class TickScheduler {
     private void processTick() {
         totalTicks.incrementAndGet();
         
-        // 获取所有有激活状态的会话
-        List<PlayerStateSession> activeSessions = stateManager.getActiveStateSessions();
+        // 使用活跃会话快照，避免每Tick全量筛选与分配
+        List<PlayerStateSession> activeSessions = stateManager.getActiveSessionSnapshot();
         if (activeSessions.isEmpty()) {
             return;
         }
         
         // 分帧处理以避免性能问题
+        if (currentPlayerIndex >= activeSessions.size()) {
+            currentPlayerIndex = 0;
+        }
         int endIndex = Math.min(currentPlayerIndex + maxPlayersPerTick, activeSessions.size());
         
         for (int i = currentPlayerIndex; i < endIndex; i++) {
@@ -201,10 +204,7 @@ public class TickScheduler {
         // 更新索引，实现循环处理
         currentPlayerIndex = endIndex >= activeSessions.size() ? 0 : endIndex;
         
-        // 如果完成了一轮，增加全局tick计数
-        if (currentPlayerIndex == 0 && !activeSessions.isEmpty()) {
-            stateManager.incrementAllActiveTicks();
-        }
+        // 时间基准修正后不再需要在轮末自增状态Tick
     }
     
     /**
@@ -253,6 +253,8 @@ public class TickScheduler {
                 session.setHovering(true);
                 actionEngine.fireRules(player, ActionType.HOVER, TriggerWhen.START);
                 totalRulesTrigger.incrementAndGet();
+                // 活跃集合同步
+                stateManager.updateActiveStatus(session);
             }
             
         } else if (!isHovering && session.isHovering()) {
@@ -261,6 +263,8 @@ public class TickScheduler {
             session.resetHoverStableCount();
             actionEngine.fireRules(player, ActionType.HOVER, TriggerWhen.END);
             totalRulesTrigger.incrementAndGet();
+            // 活跃集合同步
+            stateManager.updateActiveStatus(session);
             
         } else if (!isHovering) {
             // 重置稳定计数
@@ -278,10 +282,12 @@ public class TickScheduler {
         }
         
         // 速度条件：垂直速度和水平速度都要小于阈值
+        // 水平速度采用平方比较以避免开平方开销
         double verticalSpeed = Math.abs(velocity.getY());
-        double horizontalSpeed = Math.sqrt(velocity.getX() * velocity.getX() + velocity.getZ() * velocity.getZ());
+        double h2 = velocity.getX() * velocity.getX() + velocity.getZ() * velocity.getZ();
+        double hThreshold2 = hoverVelocityHorizontalThreshold * hoverVelocityHorizontalThreshold;
         
-        return verticalSpeed <= hoverVelocityYThreshold && horizontalSpeed <= hoverVelocityHorizontalThreshold;
+        return verticalSpeed <= hoverVelocityYThreshold && h2 <= hThreshold2;
     }
     
     /**
@@ -290,27 +296,27 @@ public class TickScheduler {
     private void processDurationRules(Player player, PlayerStateSession session) {
         // 针对所有可能的动作类型，仅在对应状态为激活时进行检查
         if (session.isFlying()) {
-            int t = session.getFlyingTicks();
+            int t = (int) (session.getFlyingDuration() / 50L);
             if (t > 0) actionEngine.checkDurationRules(player, ActionType.FLY, t);
         }
         if (session.isGliding()) {
-            int t = session.getGlidingTicks();
+            int t = (int) (session.getGlidingDuration() / 50L);
             if (t > 0) actionEngine.checkDurationRules(player, ActionType.GLIDE, t);
         }
         if (session.isSwimming()) {
-            int t = session.getSwimmingTicks();
+            int t = (int) (session.getSwimmingDuration() / 50L);
             if (t > 0) actionEngine.checkDurationRules(player, ActionType.SWIM, t);
         }
         if (session.isInBoat()) {
-            int t = session.getInBoatTicks();
+            int t = (int) (session.getInBoatDuration() / 50L);
             if (t > 0) actionEngine.checkDurationRules(player, ActionType.INBOAT, t);
         }
         if (session.isRiding()) {
-            int t = session.getRidingTicks();
+            int t = (int) (session.getRidingDuration() / 50L);
             if (t > 0) actionEngine.checkDurationRules(player, ActionType.RIDE, t);
         }
         if (session.isHovering()) {
-            int t = session.getHoveringTicks();
+            int t = (int) (session.getHoveringDuration() / 50L);
             if (t > 0) actionEngine.checkDurationRules(player, ActionType.HOVER, t);
         }
     }
@@ -321,27 +327,27 @@ public class TickScheduler {
     private void processTickRules(Player player, PlayerStateSession session) {
         // 针对所有可能的动作类型，仅在对应状态为激活时进行检查
         if (session.isFlying()) {
-            int t = session.getFlyingTicks();
+            int t = (int) (session.getFlyingDuration() / 50L);
             if (t > 0) actionEngine.checkTickRules(player, ActionType.FLY, t);
         }
         if (session.isGliding()) {
-            int t = session.getGlidingTicks();
+            int t = (int) (session.getGlidingDuration() / 50L);
             if (t > 0) actionEngine.checkTickRules(player, ActionType.GLIDE, t);
         }
         if (session.isSwimming()) {
-            int t = session.getSwimmingTicks();
+            int t = (int) (session.getSwimmingDuration() / 50L);
             if (t > 0) actionEngine.checkTickRules(player, ActionType.SWIM, t);
         }
         if (session.isInBoat()) {
-            int t = session.getInBoatTicks();
+            int t = (int) (session.getInBoatDuration() / 50L);
             if (t > 0) actionEngine.checkTickRules(player, ActionType.INBOAT, t);
         }
         if (session.isRiding()) {
-            int t = session.getRidingTicks();
+            int t = (int) (session.getRidingDuration() / 50L);
             if (t > 0) actionEngine.checkTickRules(player, ActionType.RIDE, t);
         }
         if (session.isHovering()) {
-            int t = session.getHoveringTicks();
+            int t = (int) (session.getHoveringDuration() / 50L);
             if (t > 0) actionEngine.checkTickRules(player, ActionType.HOVER, t);
         }
     }

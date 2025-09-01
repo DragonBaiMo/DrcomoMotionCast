@@ -12,23 +12,3 @@ hover:
 # Tick调度器配置
 tick:
   max_players_per_tick: 200  # 每帧处理玩家上限，超额分帧
-
-# 冷却系统配置
-cooldown:
-  default: 0                 # 默认冷却时间(tick)
-
-# 性能监控
-performance:
-  enable_statistics: true    # 启用统计信息收集
-  cleanup_interval: 300      # 清理间隔(秒)
-  
-# 集成设置
-integration:
-  mythicmobs:
-    enabled: true            # 启用MythicMobs集成
-    check_skill_exists: false # 检查技能是否存在（可能影响性能）
-  
-  modelengine:
-    enabled: true            # 启用ModelEngine集成
-    cache_model_ids: true    # 缓存玩家模型ID
-    cache_refresh_interval: 60 # 缓存刷新间隔(秒)
