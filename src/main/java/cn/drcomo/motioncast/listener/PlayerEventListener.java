@@ -199,8 +199,8 @@ public class PlayerEventListener implements Listener {
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onPlayerMove(PlayerMoveEvent event) {
         // 悬停检测由 TickScheduler 统一处理，这里仅在位置发生变化时才更新速度，减少高频事件的无效写入
-        // 说明：1.20+ 提供 hasChangedPosition，可避免视角变化等无关事件导致的冗余处理
-        if (!event.hasChangedPosition()) {
+        // 检查位置是否发生变化，避免视角变化等无关事件导致的冗余处理
+        if (event.getFrom().equals(event.getTo())) {
             return;
         }
         Player player = event.getPlayer();
