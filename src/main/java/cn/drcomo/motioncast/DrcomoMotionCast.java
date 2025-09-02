@@ -5,7 +5,7 @@ import cn.drcomo.corelib.config.YamlUtil;
 import cn.drcomo.motioncast.config.ModelRuleLoader;
 import cn.drcomo.motioncast.state.PlayerStateManager;
 import cn.drcomo.motioncast.engine.ActionEngine;
-import cn.drcomo.motioncast.target.TargeterRegistry;
+import cn.drcomo.motioncast.targetfunction.TargeterRegistry;
 import cn.drcomo.motioncast.tick.TickScheduler;
 import cn.drcomo.motioncast.cooldown.CooldownService;
 import cn.drcomo.motioncast.command.ReloadCommand;
