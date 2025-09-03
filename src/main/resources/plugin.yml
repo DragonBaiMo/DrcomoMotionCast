@@ -2,4 +2,19 @@ name: DrcomoMotionCast
 version: '${project.version}'
 main: cn.drcomo.motioncast.DrcomoMotionCast
 api-version: '1.20'
-depend: [DrcomoCoreLib, MythicMobs, ModelEngine]
+depend: [DrcomoCoreLib]
+softdepend: [MythicMobs, ModelEngine]
+
+# 命令定义
+commands:
+  drcomomotioncast:
+    description: 'DrcomoMotionCast 主命令，使用子命令 reload 重载配置'
+    usage: '/<command> reload'
+    aliases: [dmc]
+    permission: drcomo.motioncast.reload
+
+# 权限定义
+permissions:
+  drcomo.motioncast.reload:
+    description: '允许重载 DrcomoMotionCast 配置与规则'
+    default: op

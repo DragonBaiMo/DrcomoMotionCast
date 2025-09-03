@@ -9,7 +9,6 @@ import cn.drcomo.motioncast.rules.ActionType;
 import cn.drcomo.motioncast.rules.TriggerWhen;
 import cn.drcomo.motioncast.rules.RuleMeta;
 
-import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.EntityType;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -60,32 +59,40 @@ public class ModelRuleLoader {
      * 加载所有模型规则文件
      */
     public void loadAllRules() {
-        // 确保models目录存在
-        File modelsDir = new File(plugin.getDataFolder(), "models");
-        if (!modelsDir.exists()) {
-            modelsDir.mkdirs();
-            logger.info("已创建 models 目录");
+        // 1) 确保 models 目录存在
+        yamlUtil.ensureDirectory("models");
+        // 2) 首次安装时将 JAR 内 models 文件夹整体复制到数据目录（已存在则跳过）
+        try {
+            yamlUtil.ensureFolderAndCopyDefaults("models", "models");
+        } catch (Exception e) {
+            logger.warn("复制默认 models 资源失败: " + e.getMessage());
         }
-        
-        // 清空现有数据
+
+        // 3) 清空现有数据
         clearAllRules();
-        
-        // 加载所有.yml文件
-        File[] files = modelsDir.listFiles((dir, name) -> name.endsWith(".yml") || name.endsWith(".yaml"));
-        if (files == null || files.length == 0) {
+
+        // 4) 遍历加载数据目录 models/ 下的全部 yml
+        Map<String, org.bukkit.configuration.file.YamlConfiguration> configs;
+        try {
+            configs = yamlUtil.loadAllConfigsInFolder("models");
+        } catch (Exception e) {
+            logger.error("扫描 models 目录失败: " + e.getMessage());
+            return;
+        }
+
+        if (configs == null || configs.isEmpty()) {
             logger.warn("models 目录下没有找到任何配置文件");
             return;
         }
-        
+
         int loadedCount = 0;
         int totalRules = 0;
-        
-        for (File file : files) {
+
+        for (Map.Entry<String, org.bukkit.configuration.file.YamlConfiguration> entry : configs.entrySet()) {
+            String configName = entry.getKey();
+            FileConfiguration config = entry.getValue();
             try {
-                String fileName = file.getName();
-                String configName = fileName.substring(0, fileName.lastIndexOf('.'));
-                
-                if (loadModelFile(configName, file)) {
+                if (loadModelConfig(configName, config)) {
                     loadedCount++;
                     List<ActionRule> rules = modelRules.get(configName);
                     if (rules != null) {
@@ -93,13 +100,13 @@ public class ModelRuleLoader {
                     }
                 }
             } catch (Exception e) {
-                logger.error("加载模型文件 " + file.getName() + " 失败: " + e.getMessage());
+                logger.error("加载模型文件 " + configName + ".yml 失败: " + e.getMessage());
             }
         }
-        
+
         logger.info("成功加载 " + loadedCount + " 个模型文件，共 " + totalRules + " 条规则");
-        
-        // 重建索引
+
+        // 5) 重建索引
         rebuildRuleIndex();
     }
     
@@ -125,20 +132,20 @@ public class ModelRuleLoader {
                     .required()
                     .custom(v -> v != null && v.toString().trim().length() > 0, "模型ID不能为空");
             
-            // 顶层字段：rules 节必须存在且包含至少1条规则（通过手动检查补充）
-            ConfigurationSection rulesSection = config.getConfigurationSection("rules");
-            if (rulesSection == null) {
-                logger.error("配置文件 " + file.getName() + " 缺少必需的 'rules' 配置节");
+            // 顶层字段：rules 为列表，必须存在且至少包含1条规则
+            java.util.List<?> rulesList = config.getList("rules");
+            if (rulesList == null) {
+                logger.error("配置文件 " + file.getName() + " 缺少必需的 'rules' 列表");
                 return false;
             }
-            if (rulesSection.getKeys(false).isEmpty()) {
-                logger.error("配置文件 " + file.getName() + " 的 'rules' 配置节为空");
+            if (rulesList.isEmpty()) {
+                logger.error("配置文件 " + file.getName() + " 的 'rules' 列表为空");
                 return false;
             }
-            
+
             // 逐条规则校验（在同一个 validator 中声明所有规则路径，统一校验）
-            for (String key : rulesSection.getKeys(false)) {
-                String base = "rules." + key;
+            for (int i = 0; i < rulesList.size(); i++) {
+                String base = "rules." + i;
                 
                 // 基本必填项
                 validator.validateString(base + ".id").required()
@@ -203,8 +210,8 @@ public class ModelRuleLoader {
             // 存储规则
             modelRules.put(configName, rules);
             
-            // 设置文件监听
-            setupFileWatch(configName, file);
+            // 不启用文件监听（按需手动重载）
+            // setupFileWatch(configName, file);
             
             logger.info("成功加载模型 " + modelId + " 的 " + rules.size() + " 条规则");
             return true;
@@ -214,99 +221,219 @@ public class ModelRuleLoader {
             return false;
         }
     }
+
+    /**
+     * 基于已加载的配置对象进行单文件加载（用于从 models/ 目录遍历后的加载流程）
+     */
+    private boolean loadModelConfig(String configName, FileConfiguration config) {
+        try {
+            // 使用 ConfigValidator 进行完整的配置结构与字段校验
+            ConfigValidator validator = new ConfigValidator(yamlUtil, logger);
+
+            // 顶层字段：模型ID
+            validator.validateString("model")
+                    .required()
+                    .custom(v -> v != null && v.toString().trim().length() > 0, "模型ID不能为空");
+
+            // 顶层字段：rules 为列表，必须存在且至少包含1条规则
+            java.util.List<?> rulesList2 = config.getList("rules");
+            if (rulesList2 == null) {
+                logger.error("配置文件 " + configName + ".yml 缺少必需的 'rules' 列表");
+                return false;
+            }
+            if (rulesList2.isEmpty()) {
+                logger.error("配置文件 " + configName + ".yml 的 'rules' 列表为空");
+                return false;
+            }
+
+            // 逐条规则校验（使用 Map 列表，兼容 Bukkit YamlConfiguration 对列表项的表示）
+            java.util.List<String> errors = new java.util.ArrayList<>();
+            java.util.List<java.util.Map<?, ?>> rulesMapList = config.getMapList("rules");
+            for (int i = 0; i < rulesMapList.size(); i++) {
+                java.util.Map<?, ?> rs = rulesMapList.get(i);
+                if (rs == null) {
+                    errors.add("rules." + i + " 不是对象");
+                    continue;
+                }
+
+                String id = getString(rs, "id");
+                if (id == null || id.trim().isEmpty()) {
+                    errors.add("缺少配置项: rules." + i + ".id");
+                }
+
+                String actionStr = getString(rs, "action");
+                ActionType action = ActionType.fromString(actionStr);
+                if (actionStr == null || actionStr.trim().isEmpty()) {
+                    errors.add("缺少配置项: rules." + i + ".action");
+                } else if (action == null) {
+                    errors.add("无效动作类型: rules." + i + ".action=" + actionStr);
+                }
+
+                String whenStr = getString(rs, "when");
+                TriggerWhen when = whenStr == null ? null : TriggerWhen.fromString(whenStr);
+                if (whenStr == null || whenStr.trim().isEmpty()) {
+                    errors.add("缺少配置项: rules." + i + ".when");
+                } else if (when == null) {
+                    errors.add("无效触发时机: rules." + i + ".when=" + whenStr);
+                }
+
+                String skill = getString(rs, "skill");
+                if (skill == null || skill.trim().isEmpty()) {
+                    errors.add("缺少配置项: rules." + i + ".skill");
+                }
+
+                Integer cdVal = getInteger(rs, "cd");
+                if (cdVal != null && cdVal.intValue() < 0) {
+                    errors.add("cd 必须为>=0的整数: rules." + i + ".cd");
+                }
+
+                if (when == TriggerWhen.TICK) {
+                    Integer everyVal = getInteger(rs, "every");
+                    if (everyVal == null || everyVal.intValue() < 1) {
+                        errors.add("当 when=tick 时，every 必须为>=1的整数: rules." + i + ".every");
+                    }
+                }
+
+                if (when == TriggerWhen.DURATION) {
+                    Integer afterVal = getInteger(rs, "after");
+                    if (afterVal == null || afterVal.intValue() <= 0) {
+                        errors.add("当 when=duration 时，after 必须为>0的整数: rules." + i + ".after");
+                    }
+                }
+            }
+
+            if (!errors.isEmpty()) {
+                logger.warn("配置校验失败，共 " + errors.size() + " 处错误");
+                for (String err : errors) {
+                    logger.warn(err);
+                }
+                return false;
+            }
+
+            ValidationResult result = validator.validate(config);
+            if (!result.isSuccess()) {
+                logger.error("配置文件 " + configName + ".yml 存在以下错误：");
+                for (String err : result.getErrors()) {
+                    logger.error(" - " + err);
+                }
+                return false;
+            }
+
+            // 解析模型规则
+            String modelId = config.getString("model");
+            List<ActionRule> rules = parseRules(modelId, config);
+
+            if (rules.isEmpty()) {
+                logger.warn("配置文件 " + configName + ".yml 中没有有效的规则");
+                return false;
+            }
+
+            // 存储规则
+            modelRules.put(configName, rules);
+
+            // 暂不启用文件监听（loadAllConfigsInFolder 的键空间可能不包含目录信息，避免误监听）
+
+            logger.info("成功加载模型 " + modelId + " 的 " + rules.size() + " 条规则");
+            return true;
+
+        } catch (Exception e) {
+            logger.error("加载模型文件 " + configName + ".yml 时发生异常: " + e.getMessage());
+            return false;
+        }
+    }
     
     /**
      * 解析规则列表
      */
     private List<ActionRule> parseRules(String modelId, FileConfiguration config) {
         List<ActionRule> rules = new ArrayList<>();
-        
-        ConfigurationSection rulesSection = config.getConfigurationSection("rules");
-        if (rulesSection == null) {
+
+        java.util.List<java.util.Map<?, ?>> list = config.getMapList("rules");
+        if (list == null || list.isEmpty()) {
             return rules;
         }
-        
-        for (String key : rulesSection.getKeys(false)) {
-            ConfigurationSection ruleSection = rulesSection.getConfigurationSection(key);
-            if (ruleSection == null) continue;
-            
+
+        for (int i = 0; i < list.size(); i++) {
+            java.util.Map<?, ?> ruleMap = list.get(i);
+            if (ruleMap == null) continue;
+
             try {
-                ActionRule rule = parseRule(modelId, ruleSection);
+                ActionRule rule = parseRule(modelId, ruleMap);
                 if (rule != null && rule.isValid()) {
                     rules.add(rule);
                 } else {
-                    logger.warn("规则 " + key + " 无效，已跳过");
+                    logger.warn("规则索引 " + i + " 无效，已跳过");
                 }
             } catch (Exception e) {
-                logger.error("解析规则 " + key + " 失败: " + e.getMessage());
+                logger.error("解析规则索引 " + i + " 失败: " + e.getMessage());
             }
         }
-        
+
         return rules;
     }
-    
-    /**
-     * 解析单个规则
-     */
-    private ActionRule parseRule(String modelId, ConfigurationSection section) {
+
+    private ActionRule parseRule(String modelId, java.util.Map<?, ?> section) {
         // 前置已完成严格校验；此处做防御性检查避免空指针
-        if (section.getString("id") == null || section.getString("action") == null ||
-            section.getString("when") == null || section.getString("skill") == null) {
+        String idStr = getString(section, "id");
+        String actionStr = getString(section, "action");
+        String whenStr = getString(section, "when");
+        String skillStr = getString(section, "skill");
+        if (idStr == null || actionStr == null || whenStr == null || skillStr == null) {
             logger.error("规则配置验证失败: 缺少必需字段");
             return null;
         }
-        
+
         ActionRule rule = new ActionRule();
-        
+
         // 基本信息
         rule.setModelId(modelId);
-        rule.setId(section.getString("id"));
-        
+        rule.setId(idStr);
+
         // 动作类型
-        ActionType action = ActionType.fromString(section.getString("action"));
+        ActionType action = ActionType.fromString(actionStr);
         if (action == null) {
-            logger.error("不支持的动作类型: " + section.getString("action"));
+            logger.error("不支持的动作类型: " + actionStr);
             return null;
         }
         rule.setAction(action);
-        
+
         // 触发时机
-        TriggerWhen when = TriggerWhen.fromString(section.getString("when"));
+        TriggerWhen when = TriggerWhen.fromString(whenStr);
         if (when == null) {
-            logger.error("不支持的触发时机: " + section.getString("when"));
+            logger.error("不支持的触发时机: " + whenStr);
             return null;
         }
         rule.setWhen(when);
-        
+
         // 技能名称
-        rule.setSkill(section.getString("skill"));
-        
+        rule.setSkill(skillStr);
+
         // 可选参数
-        rule.setEvery(section.getInt("every", 1));
-        rule.setAfter(section.getInt("after", 0));
-        rule.setCooldown(section.getInt("cd", 0));
-        rule.setTarget(section.getString("target"));
-        rule.setRequire(section.getString("require"));
-        
+        rule.setEvery(getInt(section, "every", 1));
+        rule.setAfter(getInt(section, "after", 0));
+        rule.setCooldown(getInt(section, "cd", 0));
+        rule.setTarget(getString(section, "target"));
+        rule.setRequire(getString(section, "require"));
+
         // 解析元数据
-        RuleMeta meta = parseMeta(section.getConfigurationSection("meta"));
+        RuleMeta meta = parseMeta(getMap(section, "meta"));
         rule.setMeta(meta);
-        
+
         return rule;
     }
     
     /**
      * 解析规则元数据
      */
-    private RuleMeta parseMeta(ConfigurationSection metaSection) {
+    private RuleMeta parseMeta(java.util.Map<?, ?> metaSection) {
         RuleMeta meta = new RuleMeta();
-        
+
         if (metaSection == null) {
             return meta;
         }
-        
+
         // 解析骑乘类型
-        String mountStr = metaSection.getString("mount");
+        String mountStr = getString(metaSection, "mount");
         if (mountStr != null) {
             try {
                 EntityType mountType = EntityType.valueOf(mountStr.toUpperCase());
@@ -315,50 +442,68 @@ public class ModelRuleLoader {
                 logger.warn("无效的骑乘类型: " + mountStr);
             }
         }
-        
+
         // 解析船只限制
-        meta.setBoatOnly(metaSection.getBoolean("boat", false));
-        
+        Boolean boatOnly = getBoolean(metaSection, "boat");
+        meta.setBoatOnly(boatOnly != null ? boatOnly.booleanValue() : false);
+
         // 解析悬停最小tick数
-        if (metaSection.contains("hover_min_ticks")) {
-            meta.setHoverMinTicks(metaSection.getInt("hover_min_ticks"));
+        Integer hoverTicks = getInteger(metaSection, "hover_min_ticks");
+        if (hoverTicks != null) {
+            meta.setHoverMinTicks(hoverTicks.intValue());
         }
-        
+
+        // 解析内部取消事件开关
+        Boolean cancelEvent = getBoolean(metaSection, "cancel_event");
+        if (cancelEvent != null) {
+            meta.setCancelEvent(cancelEvent.booleanValue());
+        }
+
         return meta;
     }
-    
-    /**
-     * 设置文件监听
-     */
-    private void setupFileWatch(String configName, File file) {
+
+    // ——— Map 安全取值工具方法 ———
+    private String getString(java.util.Map<?, ?> map, String key) {
+        if (map == null) return null;
+        Object v = map.get(key);
+        if (v == null) return null;
+        return String.valueOf(v);
+    }
+
+    private Integer getInteger(java.util.Map<?, ?> map, String key) {
+        if (map == null) return null;
+        Object v = map.get(key);
+        if (v == null) return null;
+        if (v instanceof Number) return ((Number) v).intValue();
         try {
-            // 移除旧的监听
-            YamlUtil.ConfigWatchHandle oldHandle = watchHandles.remove(configName);
-            if (oldHandle != null) {
-                oldHandle.close();
-            }
-            
-            // 设置新的监听
-            YamlUtil.ConfigWatchHandle handle = yamlUtil.watchConfig(
-                configName,
-                updatedConfig -> {
-                    logger.info("检测到模型文件 " + file.getName() + " 发生变更，正在重新加载...");
-                    if (loadModelFile(configName, file)) {
-                        rebuildRuleIndex();
-                        logger.info("模型文件 " + file.getName() + " 重新加载完成");
-                    }
-                },
-                null, // 使用默认线程池
-                java.nio.file.StandardWatchEventKinds.ENTRY_MODIFY
-            );
-            
-            watchHandles.put(configName, handle);
-            
-        } catch (Exception e) {
-            logger.warn("设置文件监听失败: " + e.getMessage());
+            return Integer.parseInt(String.valueOf(v));
+        } catch (NumberFormatException ex) {
+            return null;
         }
     }
-    
+
+    private int getInt(java.util.Map<?, ?> map, String key, int def) {
+        Integer v = getInteger(map, key);
+        return v != null ? v.intValue() : def;
+    }
+
+    private Boolean getBoolean(java.util.Map<?, ?> map, String key) {
+        if (map == null) return null;
+        Object v = map.get(key);
+        if (v == null) return null;
+        if (v instanceof Boolean) return (Boolean) v;
+        String s = String.valueOf(v).toLowerCase(Locale.ROOT);
+        if ("true".equals(s)) return Boolean.TRUE;
+        if ("false".equals(s)) return Boolean.FALSE;
+        return null;
+    }
+
+    private java.util.Map<?, ?> getMap(java.util.Map<?, ?> map, String key) {
+        if (map == null) return null;
+        Object v = map.get(key);
+        if (v instanceof java.util.Map) return (java.util.Map<?, ?>) v;
+        return null;
+    }
     /**
      * 重建规则索引
      */

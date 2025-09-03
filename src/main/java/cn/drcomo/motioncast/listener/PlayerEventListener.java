@@ -48,7 +48,7 @@ public class PlayerEventListener implements Listener {
         session.setLastVictim(event.getEntity());
         
         // 触发攻击规则
-        actionEngine.fireRules(player, ActionType.ATTACK, TriggerWhen.INSTANT);
+        actionEngine.fireRules(player, ActionType.ATTACK, TriggerWhen.INSTANT, event);
     }
     
     /**
@@ -69,7 +69,7 @@ public class PlayerEventListener implements Listener {
         }
         
         // 触发受击规则
-        actionEngine.fireRules(player, ActionType.DAMAGED, TriggerWhen.INSTANT);
+        actionEngine.fireRules(player, ActionType.DAMAGED, TriggerWhen.INSTANT, event);
     }
     
     /**

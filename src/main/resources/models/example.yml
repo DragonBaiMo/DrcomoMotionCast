@@ -9,8 +9,11 @@ rules:
     action: attack
     when: instant
     skill: ExampleAttack
-    target: @victim
+    target: "@victim"
     cd: 20
+    # 若希望命中此规则时取消原始攻击事件（内部兜底），开启下列开关
+    meta:
+      cancel_event: true
     
   # 飞行规则组
   - id: fly_start
@@ -47,7 +50,7 @@ rules:
     when: tick
     every: 20
     skill: ExampleSwimBoost
-    target: @self
+    target: "@self"
     
   # 骑乘规则 - 仅限马匹
   - id: ride_horse
@@ -76,7 +79,7 @@ rules:
     when: tick
     every: 30
     skill: ExampleHoverMaintain
-    target: @self
+    target: "@self"
     cd: 5
     
   - id: hover_exit

@@ -16,6 +16,8 @@ import cn.drcomo.motioncast.integration.MythicMobsIntegration;
 import cn.drcomo.motioncast.integration.ModelEngineIntegration;
 
 import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.Bukkit;
+import org.bukkit.event.HandlerList;
 
 /**
  * DrcomoMotionCast - 动作技能映射插件
@@ -74,20 +76,22 @@ public final class DrcomoMotionCast extends JavaPlugin {
     public void onDisable() {
         logger.info("正在卸载 DrcomoMotionCast 插件...");
         
-        // 停止所有调度器
+        // 取消所有与本插件相关的 Bukkit 任务与监听器
+        Bukkit.getScheduler().cancelTasks(this);
+        HandlerList.unregisterAll(this);
+        
+        // 停止调度与后台线程
         if (tickScheduler != null) {
             tickScheduler.shutdown();
         }
-        
-        // 关闭配置文件监听（如果DrcomoCoreLib版本支持的话）
-        // 注意：根据实际DrcomoCoreLib API，可能需要其他方式来关闭资源
-        // if (yamlUtil != null) {
-        //     yamlUtil.close();
-        // }
-        
-        // 清理所有玩家状态
+        if (cooldownService != null) {
+            cooldownService.shutdown();
+        }
         if (stateManager != null) {
-            stateManager.clearAllSessions();
+            stateManager.shutdown();
+        }
+        if (ruleLoader != null) {
+            ruleLoader.shutdown();
         }
         
         logger.info("DrcomoMotionCast 插件已安全卸载");
@@ -129,9 +133,17 @@ public final class DrcomoMotionCast extends JavaPlugin {
      * 初始化核心组件
      */
     private void initializeComponents() {
-        // 初始化集成模块
-        mythicMobsIntegration = new MythicMobsIntegration(logger);
-        modelEngineIntegration = new ModelEngineIntegration(logger);
+        // 初始化集成模块（按可用性实例化，避免类加载失败）
+        if (getServer().getPluginManager().isPluginEnabled("MythicMobs")) {
+            mythicMobsIntegration = new MythicMobsIntegration(logger);
+        } else {
+            mythicMobsIntegration = null;
+        }
+        if (getServer().getPluginManager().isPluginEnabled("ModelEngine")) {
+            modelEngineIntegration = new ModelEngineIntegration(logger);
+        } else {
+            modelEngineIntegration = null;
+        }
         
         // 初始化核心服务
         cooldownService = new CooldownService(logger);
@@ -141,7 +153,8 @@ public final class DrcomoMotionCast extends JavaPlugin {
         
         // 初始化引擎和调度器
         actionEngine = new ActionEngine(this, logger, ruleLoader, stateManager, 
-                                      cooldownService, targeterRegistry, mythicMobsIntegration);
+                                      cooldownService, targeterRegistry, mythicMobsIntegration,
+                                      modelEngineIntegration);
         tickScheduler = new TickScheduler(this, logger, stateManager, actionEngine);
     }
     
@@ -177,6 +190,12 @@ public final class DrcomoMotionCast extends JavaPlugin {
         getServer().getPluginManager().registerEvents(playerEventListener, this);
         getServer().getPluginManager().registerEvents(vehicleEventListener, this);
         getServer().getPluginManager().registerEvents(entityEventListener, this);
+        // PlayerStateManager 自身也实现了 Listener，需注册其入服/离服事件
+        getServer().getPluginManager().registerEvents(stateManager, this);
+        // ModelEngine 集成事件（仅在可用时注册）
+        if (modelEngineIntegration != null && modelEngineIntegration.isAvailable()) {
+            getServer().getPluginManager().registerEvents(modelEngineIntegration, this);
+        }
         
         logger.info("事件监听器注册完成");
     }

@@ -20,6 +20,7 @@ import cn.drcomo.corelib.hook.placeholder.parse.ParseException;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
+import org.bukkit.event.Cancellable;
 
 import java.util.Collection;
 import java.util.List;
@@ -52,7 +53,8 @@ public class ActionEngine {
     
     public ActionEngine(JavaPlugin plugin, DebugUtil logger, ModelRuleLoader ruleLoader,
                        PlayerStateManager stateManager, CooldownService cooldownService,
-                       TargeterRegistry targeterRegistry, MythicMobsIntegration mythicMobsIntegration) {
+                       TargeterRegistry targeterRegistry, MythicMobsIntegration mythicMobsIntegration,
+                       ModelEngineIntegration modelEngineIntegration) {
         this.plugin = plugin;
         this.logger = logger;
         this.ruleLoader = ruleLoader;
@@ -60,7 +62,7 @@ public class ActionEngine {
         this.cooldownService = cooldownService;
         this.targeterRegistry = targeterRegistry;
         this.mythicMobsIntegration = mythicMobsIntegration;
-        this.modelEngineIntegration = new ModelEngineIntegration(logger);
+        this.modelEngineIntegration = modelEngineIntegration;
         // 初始化占位符工具与条件解析引擎（均为中文日志、无反射实现）
         // 占位符标识符使用插件名小写，保证唯一性与可读性
         this.placeholderAPIUtil = new PlaceholderAPIUtil(plugin, plugin.getName().toLowerCase());
@@ -74,6 +76,14 @@ public class ActionEngine {
      * 这是引擎的核心入口方法
      */
     public void fireRules(Player player, ActionType action, TriggerWhen when) {
+        // 兼容旧入口：无原始事件
+        fireRules(player, action, when, null);
+    }
+
+    /**
+     * 触发规则执行（可携带原始可取消事件，用于内部兜底取消）
+     */
+    public void fireRules(Player player, ActionType action, TriggerWhen when, Cancellable originalEvent) {
         if (player == null || action == null || when == null) {
             return;
         }
@@ -103,7 +113,7 @@ public class ActionEngine {
             
             // 处理每个规则
             for (ActionRule rule : rules) {
-                processRule(player, rule, targetContext);
+                processRule(player, rule, targetContext, originalEvent);
             }
             
         } catch (Exception e) {
@@ -130,7 +140,7 @@ public class ActionEngine {
     /**
      * 处理单个规则
      */
-    private void processRule(Player player, ActionRule rule, TargetContext targetContext) {
+    private void processRule(Player player, ActionRule rule, TargetContext targetContext, Cancellable originalEvent) {
         try {
             // 1. 检查冷却
             if (cooldownService.isOnCooldown(player, rule)) {
@@ -144,6 +154,14 @@ public class ActionEngine {
             if (!checkRuleCondition(player, rule)) {
                 logger.debug("规则 " + rule.getId() + " 条件检查失败");
                 return;
+            }
+            
+            // 2.5 内部兜底：如配置要求，取消原始可取消事件（例如攻击/受击）
+            if (originalEvent != null && rule.getMeta() != null && rule.getMeta().isCancelEvent()) {
+                if (!originalEvent.isCancelled()) {
+                    originalEvent.setCancelled(true);
+                    logger.debug("已根据规则配置取消原始事件 (规则: " + rule.getId() + ")");
+                }
             }
             
             // 3. 解析目标
@@ -223,7 +241,7 @@ public class ActionEngine {
      * 执行MythicMobs技能
      */
     private boolean executeSkill(Player player, ActionRule rule, Collection<Entity> targets) {
-        if (!mythicMobsIntegration.isAvailable()) {
+        if (mythicMobsIntegration == null || !mythicMobsIntegration.isAvailable()) {
             logger.debug("MythicMobs不可用，跳过技能执行");
             return false;
         }
@@ -258,7 +276,7 @@ public class ActionEngine {
             for (ActionRule rule : rules) {
                 // 检查是否达到触发时间
                 if (currentTicks >= rule.getAfter()) {
-                    processRule(player, rule, targetContext);
+                    processRule(player, rule, targetContext, null);
                 }
             }
             
@@ -285,7 +303,7 @@ public class ActionEngine {
             for (ActionRule rule : rules) {
                 // 检查是否到了触发周期
                 if (currentTicks % rule.getEvery() == 0) {
-                    processRule(player, rule, targetContext);
+                    processRule(player, rule, targetContext, null);
                 }
             }
             
