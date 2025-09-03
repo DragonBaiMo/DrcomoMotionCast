@@ -11,9 +11,6 @@ rules:
     skill: ExampleAttack
     target: "@victim"
     cd: 20
-    # 若希望命中此规则时取消原始攻击事件（内部兜底），开启下列开关
-    meta:
-      cancel_event: true
     
   # 飞行规则组
   - id: fly_start
