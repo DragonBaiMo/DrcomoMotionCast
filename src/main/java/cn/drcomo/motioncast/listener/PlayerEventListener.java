@@ -67,7 +67,7 @@ public class PlayerEventListener implements Listener {
         
         Player player = (Player) event.getEntity();
         PlayerStateSession session = stateManager.getOrCreateSession(player);
-        
+           
         // 记录攻击者（如果是实体攻击）
         if (event instanceof EntityDamageByEntityEvent) {
             EntityDamageByEntityEvent entityEvent = (EntityDamageByEntityEvent) event;
