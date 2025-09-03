@@ -49,6 +49,12 @@ public class PlayerEventListener implements Listener {
         
         // 触发攻击规则
         actionEngine.fireRules(player, ActionType.ATTACK, TriggerWhen.INSTANT);
+
+        // 根据规则元数据决定是否取消原始伤害事件
+        // 设计目的：补齐 MythicMobs 的 cancelevent 在 API castSkill 场景下不生效的问题
+        if (actionEngine.shouldCancelEvent(player, ActionType.ATTACK, TriggerWhen.INSTANT)) {
+            event.setCancelled(true);
+        }
     }
     
     /**
@@ -70,6 +76,11 @@ public class PlayerEventListener implements Listener {
         
         // 触发受击规则
         actionEngine.fireRules(player, ActionType.DAMAGED, TriggerWhen.INSTANT);
+
+        // 根据规则元数据决定是否取消原始受击事件
+        if (actionEngine.shouldCancelEvent(player, ActionType.DAMAGED, TriggerWhen.INSTANT)) {
+            event.setCancelled(true);
+        }
     }
     
     /**

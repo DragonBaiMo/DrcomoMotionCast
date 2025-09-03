@@ -19,12 +19,21 @@ public class RuleMeta {
     private boolean boatOnly;
     
     /**
+     * 是否在匹配规则时主动取消对应的原始事件（用于attack/damaged等可取消事件）
+     * 设计原因：MythicMobs 的 CancelEvent 仅在其内部事件触发上下文中生效，
+     * 通过 API castSkill 触发时无法关联 Bukkit 原事件。为保证可控性，
+     * 在规则层提供该显式开关，由插件在对应监听中主动取消事件。
+     */
+    private boolean cancelEvent;
+
+    /**
      * 悬停最小tick数（用于hover动作）
      */
     private int hoverMinTicks;
     
     public RuleMeta() {
         this.boatOnly = false;
+        this.cancelEvent = false;
         this.hoverMinTicks = -1; // -1表示使用全局设置
     }
     
@@ -45,6 +54,14 @@ public class RuleMeta {
     public void setBoatOnly(boolean boatOnly) {
         this.boatOnly = boatOnly;
     }
+
+    public boolean isCancelEvent() {
+        return cancelEvent;
+    }
+
+    public void setCancelEvent(boolean cancelEvent) {
+        this.cancelEvent = cancelEvent;
+    }
     
     public int getHoverMinTicks() {
         return hoverMinTicks;
@@ -60,6 +77,7 @@ public class RuleMeta {
     public boolean isEmpty() {
         return mountType == null && 
                !boatOnly && 
+               !cancelEvent &&
                hoverMinTicks == -1;
     }
     
@@ -79,6 +97,12 @@ public class RuleMeta {
             hasContent = true;
         }
         
+        if (cancelEvent) {
+            if (hasContent) sb.append(", ");
+            sb.append("cancelEvent=true");
+            hasContent = true;
+        }
+
         if (hoverMinTicks != -1) {
             if (hasContent) sb.append(", ");
             sb.append("hoverMinTicks=").append(hoverMinTicks);

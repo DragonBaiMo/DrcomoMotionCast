@@ -11,6 +11,10 @@ rules:
     skill: ExampleAttack
     target: "@victim"
     cd: 20
+    meta:
+      # 若希望取消玩家原始的普通攻击伤害（使用 MythicMobs 技能替代），开启此开关
+      # 对应监听将主动取消 Bukkit 的 EntityDamageByEntityEvent
+      cancel_event: true
     
   # 飞行规则组
   - id: fly_start

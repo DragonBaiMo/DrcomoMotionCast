@@ -447,6 +447,14 @@ public class ModelRuleLoader {
         Boolean boatOnly = getBoolean(metaSection, "boat");
         meta.setBoatOnly(boatOnly != null ? boatOnly.booleanValue() : false);
 
+        // 解析取消事件开关
+        // 配置键：meta.cancel_event: true/false
+        // 适用场景：attack / damaged 等可取消事件；开启后，插件会在对应监听中主动取消原始 Bukkit 事件。
+        Boolean cancelEvent = getBoolean(metaSection, "cancel_event");
+        if (cancelEvent != null) {
+            meta.setCancelEvent(cancelEvent.booleanValue());
+        }
+
         // 解析悬停最小tick数
         Integer hoverTicks = getInteger(metaSection, "hover_min_ticks");
         if (hoverTicks != null) {

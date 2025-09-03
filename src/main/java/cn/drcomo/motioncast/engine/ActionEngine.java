@@ -320,6 +320,38 @@ public class ActionEngine {
         
         logger.info("动作引擎统计信息已重置");
     }
+
+    /**
+     * 判断是否应当取消对应事件
+     * 用途：在 Bukkit 事件监听中调用，如玩家攻击/受击等可取消事件。
+     * 规则来源：当前玩家模型下，匹配 action + when 的规则中任意一条 meta.cancel_event=true 即视为需要取消。
+     *
+     * 说明：
+     * - MythicMobs 的 cancelevent 机制仅在其内部事件上下文生效；
+     *   当通过 API castSkill 触发时无法直接关联 Bukkit 原事件。
+     * - 为保证可控性与直观性，这里按规则元数据进行插件侧显式取消。
+     */
+    public boolean shouldCancelEvent(Player player, ActionType action, TriggerWhen when) {
+        try {
+            if (player == null || action == null || when == null) return false;
+
+            String modelId = getPlayerModelId(player);
+            if (modelId == null) return false;
+
+            java.util.List<ActionRule> rules = ruleLoader.getRules(modelId, action, when);
+            if (rules == null || rules.isEmpty()) return false;
+
+            for (ActionRule rule : rules) {
+                if (rule != null && rule.getMeta() != null && rule.getMeta().isCancelEvent()) {
+                    return true;
+                }
+            }
+            return false;
+        } catch (Exception e) {
+            logger.debug("判断是否取消事件时发生异常: " + e.getMessage());
+            return false;
+        }
+    }
     
     /**
      * 动作引擎统计信息类
