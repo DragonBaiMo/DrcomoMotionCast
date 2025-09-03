@@ -19,6 +19,7 @@ import cn.drcomo.corelib.hook.placeholder.parse.ParseException;
 
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
+import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.Collection;
@@ -38,6 +39,7 @@ public class ActionEngine {
     private final CooldownService cooldownService;
     private final TargeterRegistry targeterRegistry;
     private final MythicMobsIntegration mythicMobsIntegration;
+    private final cn.drcomo.motioncast.integration.MythicAttackBridge mythicAttackBridge;
     private final ModelEngineIntegration modelEngineIntegration;
     // 条件解析相关
     private final PlaceholderAPIUtil placeholderAPIUtil;
@@ -53,7 +55,8 @@ public class ActionEngine {
     public ActionEngine(JavaPlugin plugin, DebugUtil logger, ModelRuleLoader ruleLoader,
                        PlayerStateManager stateManager, CooldownService cooldownService,
                        TargeterRegistry targeterRegistry, MythicMobsIntegration mythicMobsIntegration,
-                       ModelEngineIntegration modelEngineIntegration) {
+                       ModelEngineIntegration modelEngineIntegration,
+                       cn.drcomo.motioncast.integration.MythicAttackBridge mythicAttackBridge) {
         this.plugin = plugin;
         this.logger = logger;
         this.ruleLoader = ruleLoader;
@@ -62,6 +65,7 @@ public class ActionEngine {
         this.targeterRegistry = targeterRegistry;
         this.mythicMobsIntegration = mythicMobsIntegration;
         this.modelEngineIntegration = modelEngineIntegration;
+        this.mythicAttackBridge = mythicAttackBridge;
         // 初始化占位符工具与条件解析引擎（均为中文日志、无反射实现）
         // 占位符标识符使用插件名小写，保证唯一性与可读性
         this.placeholderAPIUtil = new PlaceholderAPIUtil(plugin, plugin.getName().toLowerCase());
@@ -104,7 +108,7 @@ public class ActionEngine {
             
             // 处理每个规则
             for (ActionRule rule : rules) {
-                processRule(player, rule, targetContext);
+                processRule(player, session, rule, targetContext);
             }
             
         } catch (Exception e) {
@@ -131,7 +135,7 @@ public class ActionEngine {
     /**
      * 处理单个规则
      */
-    private void processRule(Player player, ActionRule rule, TargetContext targetContext) {
+    private void processRule(Player player, PlayerStateSession session, ActionRule rule, TargetContext targetContext) {
         try {
             // 1. 检查冷却
             if (cooldownService.isOnCooldown(player, rule)) {
@@ -151,7 +155,7 @@ public class ActionEngine {
             Collection<Entity> targets = resolveTargets(player, rule, targetContext);
             
             // 4. 执行技能
-            boolean success = executeSkill(player, rule, targets);
+            boolean success = executeSkill(player, session, rule, targets);
             
             if (success) {
                 successfulExecutions.incrementAndGet();
@@ -223,22 +227,30 @@ public class ActionEngine {
     /**
      * 执行MythicMobs技能
      */
-    private boolean executeSkill(Player player, ActionRule rule, Collection<Entity> targets) {
+    private boolean executeSkill(Player player, PlayerStateSession session, ActionRule rule, Collection<Entity> targets) {
         if (mythicMobsIntegration == null || !mythicMobsIntegration.isAvailable()) {
             logger.debug("MythicMobs不可用，跳过技能执行");
             return false;
         }
         
         String skillName = rule.getSkill();
-        
-        // 根据目标数量选择合适的执行方式
-        if (targets.isEmpty()) {
-            // 没有外部目标，使用技能内部的targeter
-            return mythicMobsIntegration.castSkill(player, skillName);
-        } else {
-            // 有外部目标，传递给MythicMobs
-            return mythicMobsIntegration.castSkill(player, skillName, targets);
+
+        // ATTACK 动作：若存在绑定的 Bukkit 原始事件，则优先通过近战桥接执行，确保 CancelEvent 生效
+        if (rule.getAction() == ActionType.ATTACK && mythicAttackBridge != null && mythicAttackBridge.isAvailable()) {
+            EntityDamageByEntityEvent attackEvent = session.getCustomData("last_attack_event", EntityDamageByEntityEvent.class);
+            if (attackEvent != null) {
+                boolean ok = mythicAttackBridge.castSkillWithEvent(player, skillName, attackEvent, targets);
+                if (ok) return true; // 桥接成功即返回
+                // 桥接失败则继续回退到常规 API
+                logger.warn("近战桥接执行失败，回退至常规API: " + skillName);
+            }
         }
+
+        // 常规执行：根据目标数量选择合适的 API Helper 调用
+        if (targets.isEmpty()) {
+            return mythicMobsIntegration.castSkill(player, skillName);
+        }
+        return mythicMobsIntegration.castSkill(player, skillName, targets);
     }
     
     /**
@@ -259,7 +271,7 @@ public class ActionEngine {
             for (ActionRule rule : rules) {
                 // 检查是否达到触发时间
                 if (currentTicks >= rule.getAfter()) {
-                    processRule(player, rule, targetContext);
+                    processRule(player, session, rule, targetContext);
                 }
             }
             
@@ -286,7 +298,7 @@ public class ActionEngine {
             for (ActionRule rule : rules) {
                 // 检查是否到了触发周期
                 if (currentTicks % rule.getEvery() == 0) {
-                    processRule(player, rule, targetContext);
+                    processRule(player, session, rule, targetContext);
                 }
             }
             

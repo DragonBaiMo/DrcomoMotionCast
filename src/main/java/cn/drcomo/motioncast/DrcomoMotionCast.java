@@ -37,6 +37,7 @@ public final class DrcomoMotionCast extends JavaPlugin {
     private CooldownService cooldownService;
     private MythicMobsIntegration mythicMobsIntegration;
     private ModelEngineIntegration modelEngineIntegration;
+    private cn.drcomo.motioncast.integration.MythicAttackBridge mythicAttackBridge;
     
     // 事件监听器
     private PlayerEventListener playerEventListener;
@@ -136,8 +137,10 @@ public final class DrcomoMotionCast extends JavaPlugin {
         // 初始化集成模块（按可用性实例化，避免类加载失败）
         if (getServer().getPluginManager().isPluginEnabled("MythicMobs")) {
             mythicMobsIntegration = new MythicMobsIntegration(logger);
+            mythicAttackBridge = new cn.drcomo.motioncast.integration.MythicAttackBridge(logger);
         } else {
             mythicMobsIntegration = null;
+            mythicAttackBridge = null;
         }
         if (getServer().getPluginManager().isPluginEnabled("ModelEngine")) {
             modelEngineIntegration = new ModelEngineIntegration(logger);
@@ -152,9 +155,10 @@ public final class DrcomoMotionCast extends JavaPlugin {
         ruleLoader = new ModelRuleLoader(this, yamlUtil, logger);
         
         // 初始化引擎和调度器
-        actionEngine = new ActionEngine(this, logger, ruleLoader, stateManager, 
-                                      cooldownService, targeterRegistry, mythicMobsIntegration,
-                                      modelEngineIntegration);
+        actionEngine = new ActionEngine(this, logger, ruleLoader, stateManager,
+                                        cooldownService, targeterRegistry,
+                                        mythicMobsIntegration, modelEngineIntegration,
+                                        mythicAttackBridge);
         tickScheduler = new TickScheduler(this, logger, stateManager, actionEngine);
     }
     

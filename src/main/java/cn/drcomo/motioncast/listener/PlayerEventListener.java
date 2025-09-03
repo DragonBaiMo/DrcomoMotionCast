@@ -34,27 +34,39 @@ public class PlayerEventListener implements Listener {
     }
     
     /**
-     * 玩家攻击事件
-     * 使用 HIGH 优先级以支持技能中的 CancelEvent 机制取消原始攻击
+     * 玩家攻击事件（物理近战入口）
+     * 使用 HIGHEST + ignoreCancelled=true，便于技能内 CancelEvent 同步生效并避免重复处理。
      */
-    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = false)
+    @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = true)
     public void onPlayerAttack(EntityDamageByEntityEvent event) {
         if (!(event.getDamager() instanceof Player)) return;
-        
+
+        // 仅处理物理近战（排除投射物、技能等其他伤害类型）
+        EntityDamageEvent.DamageCause cause = event.getCause();
+        if (cause != EntityDamageEvent.DamageCause.ENTITY_ATTACK &&
+            cause != EntityDamageEvent.DamageCause.ENTITY_SWEEP_ATTACK) {
+            return;
+        }
+
         Player player = (Player) event.getDamager();
         PlayerStateSession session = stateManager.getOrCreateSession(player);
-        
+
+        // 绑定本次原始攻击事件，供引擎在执行技能时注入 Mythic 元数据
+        session.setCustomData("last_attack_event", event);
+
         // 记录受害者
         session.setLastVictim(event.getEntity());
-        
+
         // 触发攻击规则
         actionEngine.fireRules(player, ActionType.ATTACK, TriggerWhen.INSTANT);
 
-        // 根据规则元数据决定是否取消原始伤害事件
-        // 设计目的：补齐 MythicMobs 的 cancelevent 在 API castSkill 场景下不生效的问题
+        // 根据规则元数据决定是否取消原始伤害事件（作为保险兜底）
         if (actionEngine.shouldCancelEvent(player, ActionType.ATTACK, TriggerWhen.INSTANT)) {
             event.setCancelled(true);
         }
+
+        // 清理事件上下文，避免泄露到其他动作流程
+        session.setCustomData("last_attack_event", null);
     }
     
     /**
