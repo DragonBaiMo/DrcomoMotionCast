@@ -54,7 +54,7 @@ public class PlayerEventListener implements Listener {
         stateManager.getOrCreateSession(player);
 
         // 触发挥手动作规则（即时）
-        actionEngine.fireRules(player, ActionType.WAVE, TriggerWhen.INSTANT);
+        actionEngine.fireRules(player, ActionType.SWING, TriggerWhen.INSTANT);
     }
 
     /**
