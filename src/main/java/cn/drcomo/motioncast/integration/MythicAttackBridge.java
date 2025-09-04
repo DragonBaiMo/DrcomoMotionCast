@@ -8,6 +8,7 @@ import io.lumine.mythic.api.skills.SkillCaster;
 import io.lumine.mythic.api.skills.SkillManager;
 import io.lumine.mythic.api.skills.SkillMetadata;
 import io.lumine.mythic.api.skills.SkillTrigger;
+import io.lumine.mythic.core.skills.SkillTriggers;
 import io.lumine.mythic.bukkit.MythicBukkit;
 import io.lumine.mythic.bukkit.BukkitAdapter;
 import io.lumine.mythic.bukkit.adapters.BukkitTriggerMetadata;
@@ -32,10 +33,7 @@ public class MythicAttackBridge {
 
     private final DebugUtil logger;
     private final SkillManager skillManager;
-    // 使用自注册的触发器标识，避免依赖核心是否预注册特定常量（如 ATTACK）
-    // 仅使用唯一标识，不设任何别名，避免与核心触发器重名造成歧义
-    private static final SkillTrigger<?> API_ATTACK_TRIGGER = SkillTrigger.create("API_ATTACK_BRIDGE");
-
+    private static final SkillTrigger<?> ATTACK_TRIGGER = SkillTriggers.ATTACK;
     public MythicAttackBridge(DebugUtil logger) {
         this.logger = logger;
         SkillManager sm = null;
@@ -91,22 +89,21 @@ public class MythicAttackBridge {
             }
 
             // 构造元数据（5.x：SkillMetadataImpl 由 core 包提供实现）
-            io.lumine.mythic.core.skills.SkillMetadataImpl meta =
-                    new io.lumine.mythic.core.skills.SkillMetadataImpl(
-                            API_ATTACK_TRIGGER, // 近战触发类型（自注册），不依赖核心是否存在 ATTACK 常量
-                            mSkillCaster,
-                            mTrigger,
-                            mOrigin,
-                            mTargets,
-                            Collections.<AbstractLocation>emptyList(),
-                            1.0f
-                    );
-
-            // 将 Bukkit 原事件绑定到元数据，便于在技能中 CancelEvent 精准取消
-            SkillMetadata bound = BukkitTriggerMetadata.apply(meta, originalEvent);
-
-            // Mythic 5.7 的 Skill#execute(meta) 为 void，执行成功与否不提供布尔返回
-            skill.execute(bound);
+            SkillMetadata meta = new io.lumine.mythic.core.skills.SkillMetadataImpl(
+                ATTACK_TRIGGER,               // ✅ 使用官方 ATTACK 触发器
+                mSkillCaster,
+                mTrigger,                     // 建议用受害者作为 trigger
+                mOrigin,
+                mTargets,
+                java.util.Collections.emptyList(),
+                1.0f
+            );
+        
+        // 关键：绑定同一次 Bukkit 事件
+        meta = io.lumine.mythic.bukkit.adapters.BukkitTriggerMetadata.apply(meta, originalEvent);
+        
+        // 然后执行
+        skill.execute(meta); 
             logger.debug("桥接执行技能 " + skillName + " 已调用执行（无返回值）");
             return true;
 
