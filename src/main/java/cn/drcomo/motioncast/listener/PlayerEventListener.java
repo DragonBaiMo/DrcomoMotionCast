@@ -1,5 +1,6 @@
 package cn.drcomo.motioncast.listener;
 
+import cn.drcomo.corelib.util.DebugUtil;
 import cn.drcomo.motioncast.engine.ActionEngine;
 import cn.drcomo.motioncast.state.PlayerStateManager;
 import cn.drcomo.motioncast.state.PlayerStateSession;
@@ -29,10 +30,12 @@ public class PlayerEventListener implements Listener {
     
     private final ActionEngine actionEngine;
     private final PlayerStateManager stateManager;
+    private final DebugUtil logger;
     
-    public PlayerEventListener(ActionEngine actionEngine, PlayerStateManager stateManager) {
+    public PlayerEventListener(ActionEngine actionEngine, PlayerStateManager stateManager, DebugUtil logger) {
         this.actionEngine = actionEngine;
         this.stateManager = stateManager;
+        this.logger = logger;
     }
     
     /**
@@ -81,6 +84,9 @@ public class PlayerEventListener implements Listener {
         // 记录受害者
         session.setLastVictim(event.getEntity());
 
+        // 调试：打印取消前状态
+        logger.debug("近战监听 before: cancelled=" + event.isCancelled());
+
         // 触发攻击规则
         actionEngine.fireRules(player, ActionType.ATTACK, TriggerWhen.INSTANT);
 
@@ -88,6 +94,9 @@ public class PlayerEventListener implements Listener {
         if (actionEngine.shouldCancelEvent(player, ActionType.ATTACK, TriggerWhen.INSTANT)) {
             event.setCancelled(true);
         }
+
+        // 调试：打印取消后状态
+        logger.debug("近战监听 after:  cancelled=" + event.isCancelled());
 
         // 清理事件上下文，避免泄露到其他动作流程
         session.setCustomData("last_attack_event", null);

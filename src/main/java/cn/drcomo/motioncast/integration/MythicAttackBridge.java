@@ -34,6 +34,8 @@ public class MythicAttackBridge {
     private final DebugUtil logger;
     private final SkillManager skillManager;
     private static final SkillTrigger<?> ATTACK_TRIGGER = SkillTriggers.ATTACK;
+    // 线程级再入阀：防止同一tick内技能回流导致重复触发
+    private static final ThreadLocal<Boolean> IN_BRIDGE = ThreadLocal.withInitial(() -> false);
     public MythicAttackBridge(DebugUtil logger) {
         this.logger = logger;
         SkillManager sm = null;
@@ -98,13 +100,23 @@ public class MythicAttackBridge {
                 java.util.Collections.emptyList(),
                 1.0f
             );
-        
-        // 关键：绑定同一次 Bukkit 事件
-        meta = io.lumine.mythic.bukkit.adapters.BukkitTriggerMetadata.apply(meta, originalEvent);
-        
-        // 然后执行
-        skill.execute(meta); 
-            logger.debug("桥接执行技能 " + skillName + " 已调用执行（无返回值）");
+            
+            // 关键：绑定同一次 Bukkit 事件
+            meta = io.lumine.mythic.bukkit.adapters.BukkitTriggerMetadata.apply(meta, originalEvent);
+
+            // 再入保护（主线程有效，避免同tick回流二次触发）
+            if (IN_BRIDGE.get()) {
+                logger.debug("检测到桥接内再入，跳过执行（同tick保护）");
+                return true;
+            }
+            IN_BRIDGE.set(true);
+            try {
+                // 同步执行入口技能
+                skill.execute(meta);
+            } finally {
+                IN_BRIDGE.set(false);
+            }
+            logger.debug("桥接执行技能 " + skillName + " 已完成调用");
             return true;
 
         } catch (Throwable t) {

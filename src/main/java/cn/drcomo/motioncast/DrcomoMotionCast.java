@@ -230,7 +230,7 @@ public final class DrcomoMotionCast extends JavaPlugin {
      * 注册事件监听器
      */
     private void registerEventListeners() {
-        playerEventListener = new PlayerEventListener(actionEngine, stateManager);
+        playerEventListener = new PlayerEventListener(actionEngine, stateManager, logger);
         vehicleEventListener = new VehicleEventListener(actionEngine, stateManager);
         entityEventListener = new EntityEventListener(actionEngine, stateManager);
         
