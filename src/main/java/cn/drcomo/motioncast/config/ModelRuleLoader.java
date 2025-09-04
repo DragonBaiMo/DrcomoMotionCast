@@ -506,39 +506,7 @@ public class ModelRuleLoader {
         if (v instanceof java.util.Map) return (java.util.Map<?, ?>) v;
         return null;
     }
-    
-    /**
-     * 设置文件监听
-     */
-    private void setupFileWatch(String configName, File file) {
-        try {
-            // 移除旧的监听
-            YamlUtil.ConfigWatchHandle oldHandle = watchHandles.remove(configName);
-            if (oldHandle != null) {
-                oldHandle.close();
-            }
-            
-            // 设置新的监听
-            YamlUtil.ConfigWatchHandle handle = yamlUtil.watchConfig(
-                configName,
-                updatedConfig -> {
-                    logger.info("检测到模型文件 " + file.getName() + " 发生变更，正在重新加载...");
-                    if (loadModelFile(configName, file)) {
-                        rebuildRuleIndex();
-                        logger.info("模型文件 " + file.getName() + " 重新加载完成");
-                    }
-                },
-                null, // 使用默认线程池
-                java.nio.file.StandardWatchEventKinds.ENTRY_MODIFY
-            );
-            
-            watchHandles.put(configName, handle);
-            
-        } catch (Exception e) {
-            logger.warn("设置文件监听失败: " + e.getMessage());
-        }
-    }
-    
+
     /**
      * 重建规则索引
      */

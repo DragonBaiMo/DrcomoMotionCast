@@ -3,6 +3,7 @@ package cn.drcomo.motioncast.command;
 import cn.drcomo.corelib.util.DebugUtil;
 import cn.drcomo.corelib.config.YamlUtil;
 import cn.drcomo.motioncast.config.ModelRuleLoader;
+import cn.drcomo.motioncast.DrcomoMotionCast;
 
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
@@ -61,6 +62,11 @@ public class ReloadCommand implements CommandExecutor, TabCompleter {
             yamlUtil.loadConfig("settings");
             yamlUtil.loadConfig("lang");
             
+            // 在应用规则前，先刷新日志级别，确保后续日志按新级别输出
+            if (plugin instanceof DrcomoMotionCast) {
+                ((DrcomoMotionCast) plugin).refreshDebugLevel();
+            }
+
             // 重载规则文件
             ruleLoader.loadAllRules();
             

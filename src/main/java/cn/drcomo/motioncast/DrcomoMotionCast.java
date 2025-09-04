@@ -18,6 +18,7 @@ import cn.drcomo.motioncast.integration.ModelEngineIntegration;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.Bukkit;
 import org.bukkit.event.HandlerList;
+import org.bukkit.configuration.file.FileConfiguration;
 
 /**
  * DrcomoMotionCast - 动作技能映射插件
@@ -173,6 +174,9 @@ public final class DrcomoMotionCast extends JavaPlugin {
             // 加载主配置
             yamlUtil.loadConfig("settings");
             yamlUtil.loadConfig("lang");
+
+            // 应用日志级别
+            applyDebugLevelFromSettings();
             
             // 加载模型规则
             ruleLoader.loadAllRules();
@@ -181,6 +185,45 @@ public final class DrcomoMotionCast extends JavaPlugin {
         } catch (Exception e) {
             logger.error("配置文件加载失败: " + e.getMessage());
         }
+    }
+
+    /**
+     * 从 settings.yml 读取 debug 级别并应用到日志工具
+     * 支持值：DEBUG | INFO | NONE（映射为仅错误）
+     */
+    private void applyDebugLevelFromSettings() {
+        try {
+            FileConfiguration cfg = yamlUtil.getConfig("settings");
+            String level = cfg != null ? cfg.getString("debug", "INFO") : "INFO";
+            if (level == null) level = "INFO";
+            DebugUtil.LogLevel mapped;
+            switch (level.trim().toUpperCase()) {
+                case "DEBUG":
+                    mapped = DebugUtil.LogLevel.DEBUG;
+                    break;
+                case "NONE":
+                    // “仅输出错误信息”的语义，映射为 ERROR 阈值
+                    mapped = DebugUtil.LogLevel.ERROR;
+                    break;
+                case "INFO":
+                    mapped = DebugUtil.LogLevel.INFO;
+                    break;
+                default:
+                    logger.warn("settings.yml 中的 debug 值无效: " + level + "，已回退为 INFO");
+                    mapped = DebugUtil.LogLevel.INFO;
+            }
+            logger.setLevel(mapped);
+            logger.info("日志级别已设置为: " + mapped.name());
+        } catch (Exception e) {
+            logger.error("应用日志级别时出现异常: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 对外提供的刷新入口：在重载后应用 settings.yml 的 debug 级别
+     */
+    public void refreshDebugLevel() {
+        applyDebugLevelFromSettings();
     }
     
     /**

@@ -46,6 +46,11 @@ public enum ActionType {
     HOVER("hover"),
     
     /**
+     * 挥手动作 - PlayerAnimationEvent（主手挥动/左键）（ArmSwing）
+     */
+    SWING("swing"),
+    
+    /**
      * 动画播放动作 - ModelEngine集成
      */
     ANIM_PLAY("anim.play");

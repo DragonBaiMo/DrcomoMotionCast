@@ -16,6 +16,8 @@ import org.bukkit.event.entity.EntityToggleGlideEvent;
 import org.bukkit.event.entity.EntityToggleSwimEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerToggleFlightEvent;
+import org.bukkit.event.player.PlayerAnimationEvent;
+import org.bukkit.event.player.PlayerAnimationType;
 import org.bukkit.event.vehicle.VehicleEnterEvent;
 import org.bukkit.event.vehicle.VehicleExitEvent;
 
@@ -33,6 +35,28 @@ public class PlayerEventListener implements Listener {
         this.stateManager = stateManager;
     }
     
+    /**
+     * 挥手（左键主手挥动）事件
+     * 说明：
+     * - 使用 PlayerAnimationEvent 捕获玩家主手的 ARM_SWING 动画；
+     * - 仅当类型为主手挥动（ARM_SWING）时触发，避免副手/盾牌导致的误触发；
+     * - 触发后映射为动作类型 ActionType.WAVE，触发时机为 INSTANT。
+     */
+    @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
+    public void onPlayerSwing(PlayerAnimationEvent event) {
+        PlayerAnimationType type = event.getAnimationType();
+        if (type != PlayerAnimationType.ARM_SWING) {
+            return; // 仅处理主手挥动，避免副手挥动
+        }
+
+        Player player = event.getPlayer();
+        // 更新会话（仅确保存在，不引入额外状态）
+        stateManager.getOrCreateSession(player);
+
+        // 触发挥手动作规则（即时）
+        actionEngine.fireRules(player, ActionType.WAVE, TriggerWhen.INSTANT);
+    }
+
     /**
      * 玩家攻击事件（物理近战入口）
      * 使用 HIGHEST + ignoreCancelled=true，便于技能内 CancelEvent 同步生效并避免重复处理。
